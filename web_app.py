@@ -18,17 +18,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import streamlit as st
-from meeting_summarizer import (
-    summarize_meeting,
-    parse_file,
-    get_history,
-    get_meeting_by_id,
-    init_db,
-    _build_export_content,
-    export_markdown,
-    export_docx,
-    export_pdf,
-)
+from core import summarize_meeting
+from db import init_db, get_history, get_meeting_by_id
+from parser import parse_file
+from export import export_markdown, export_docx, export_pdf, _build_export_content
 
 # ==================== 页面配置 ====================
 st.set_page_config(
