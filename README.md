@@ -1,79 +1,125 @@
-# 📋 AI 智能会议纪要生成工具
+# 📋 AI Meeting Minutes Generator / AI 智能会议纪要生成工具
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](https://www.python.org/)
+[![Gradio](https://img.shields.io/badge/Gradio-4.x-orange.svg)](https://www.gradio.app/)
+
+An intelligent meeting minutes extraction tool powered by **DeepSeek + LangChain + Pydantic**. Paste meeting transcripts or upload files — it automatically extracts **debate points**, **final conclusions**, and **action items**. Supports history search and multi-format export.
 
 基于 **Gradio + DeepSeek + LangChain + Pydantic** 的智能会议纪要结构化提取工具。输入会议文字记录或上传文件，自动提取**争论焦点**、**最终结论**和**待办事项**，支持历史检索与多格式导出。
 
-## ✨ 核心功能
+> 🌐 **English** | [中文](#中文)
 
-| 功能 | 说明 |
-|------|------|
-| 🧠 **AI 结构化提取** | 基于 DeepSeek 大模型，强制按 Pydantic Schema 输出 JSON，提取争论焦点 / 最终结论 / 待办事项 |
-| 📁 **多格式文件上传** | 支持 `.txt` / `.docx` 文本解析，以及 `.mp3` / `.wav` / `.m4a` 语音转文字（Whisper） |
-| 📋 **历史记录管理** | SQLite 本地存储，左侧面板关键词检索，点击回看任意历史纪要 |
-| 📥 **一键导出** | 支持 Markdown / Word(.docx) / PDF 三种格式导出 |
+---
 
-## 🏗️ 技术架构
+## ✨ Features / 核心功能
 
-```
-┌──────────────────────────────────────────────────┐
-│                  Gradio Web UI                    │
-│   ┌──────────┐  ┌──────────────┐  ┌───────────┐  │
-│   │ 文本输入  │  │  文件上传     │  │ 历史记录   │  │
-│   └────┬─────┘  └──────┬───────┘  └─────┬─────┘  │
-│        │               │               │         │
-│   ┌────┴───────────────┴───────────────┴─────┐   │
-│   │           核心处理层 (Pydantic Schema)      │   │
-│   │   DeepSeek Chat API + Structured Output    │   │
-│   └────────────────────┬──────────────────────┘   │
-│                        │                          │
-│   ┌────────────────────┼──────────────────────┐   │
-│   │  SQLite 持久化  │  导出层 (MD/DOCX/PDF)    │   │
-│   └────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────┘
-```
+| Feature | Description |
+|---------|-------------|
+| 🧠 **AI Structured Extraction** | DeepSeek LLM with Pydantic Schema-enforced JSON output — debate points, conclusions, action items |
+| 📁 **Multi-format Upload** | `.txt` / `.docx` parsing + `.mp3` / `.wav` / `.m4a` speech-to-text (Whisper) |
+| 📋 **History Management** | SQLite local storage with keyword search and instant recall |
+| 📥 **One-click Export** | Markdown / Word(.docx) / PDF export |
 
-### 技术栈
+## 🚀 Quick Start
 
-- **UI 框架**: Gradio 4.x（响应式 Web 界面）
-- **大模型**: DeepSeek Chat API（`langchain-deepseek` 集成）
-- **结构化输出**: LangChain `with_structured_output` + Pydantic v2 强制 Schema 校验
-- **数据持久化**: SQLite3（线程安全，`threading.Lock` 并发控制）
-- **文件解析**:
-  - `.txt` → 原生解析（UTF-8 / GBK 自动检测编码）
-  - `.docx` → `python-docx` 段落提取
-  - `.mp3/.wav/.m4a` → OpenAI Whisper `tiny` 模型语音转文字（懒加载，首次使用 ~75MB）
-- **文档导出**: `python-docx`（Word）、`fpdf2`（PDF，中文字体渲染）
-
-## 🚀 快速开始
-
-### 1. 环境要求
+### 1. Requirements
 
 - Python 3.9+
-- （可选）`ffmpeg` — 仅音频转文字功能需要
+- (Optional) `ffmpeg` — only needed for audio transcription
 
-### 2. 安装依赖
+### 2. Install
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. 配置 API Key
+### 3. Configure API Key
 
 ```bash
 cp .env.example .env
-# 编辑 .env，填入你的 DeepSeek API Key
+# Edit .env and add your DeepSeek API key
 ```
 
-> 从 [platform.deepseek.com](https://platform.deepseek.com) 获取 API Key
+> Get your API key at [platform.deepseek.com](https://platform.deepseek.com)
 
-### 4. 启动应用
+### 4. Launch
 
 ```bash
+# Windows
+run.bat
+
+# Mac / Linux
+bash run.sh
+
+# Or directly
 python meeting_summarizer.py
 ```
 
-浏览器将自动打开 `http://127.0.0.1:7860`
+Browser opens at `http://127.0.0.1:7860`
 
-## 📖 使用指南
+> 💡 **No API key?** The app still launches — you can explore the UI. Generation will show a friendly setup guide.
+
+## 🏗️ Architecture / 技术架构
+
+```
+┌──────────────────────────────────────────────────┐
+│                  Gradio Web UI                    │
+│   ┌──────────┐  ┌──────────────┐  ┌───────────┐  │
+│   │  Text     │  │  File Upload │  │  History   │  │
+│   └────┬─────┘  └──────┬───────┘  └─────┬─────┘  │
+│        │               │               │         │
+│   ┌────┴───────────────┴───────────────┴─────┐   │
+│   │        Core: Pydantic Schema + LLM         │   │
+│   │   DeepSeek Chat API + Structured Output    │   │
+│   └────────────────────┬──────────────────────┘   │
+│                        │                          │
+│   ┌────────────────────┼──────────────────────┐   │
+│   │  SQLite Storage  │  Export (MD/DOCX/PDF)   │   │
+│   └────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────┘
+```
+
+### Tech Stack / 技术栈
+
+- **UI**: Gradio 4.x
+- **LLM**: DeepSeek Chat via `langchain-deepseek`
+- **Structured Output**: LangChain `with_structured_output` + Pydantic v2
+- **Storage**: SQLite3 (thread-safe with `threading.Lock`)
+- **File Parsing**:
+  - `.txt` → auto-detect encoding (UTF-8 / GBK)
+  - `.docx` → `python-docx`
+  - Audio → OpenAI Whisper `tiny` (lazy-loaded, ~75MB)
+- **Export**: `python-docx` (Word), `fpdf2` (PDF with CJK fonts)
+
+## 📁 Project Structure / 项目结构
+
+```
+AI-TranscribeNote/
+├── meeting_summarizer.py    # Main app
+├── requirements.txt         # Python dependencies
+├── run.bat                  # Windows launcher
+├── run.sh                   # Linux/Mac launcher
+├── .env.example             # API key template
+├── .gitignore
+├── LICENSE                  # MIT
+└── README.md
+```
+
+## 🔧 Design Highlights / 设计要点
+
+- **Lazy initialization**: LLM & Whisper models load on first use — fast startup
+- **Auto dependency check**: missing packages installed automatically on launch
+- **Encoding resilience**: auto-fallback UTF-8 → GBK for Chinese Windows
+- **Thread safety**: SQLite operations protected by `threading.Lock`
+- **Graceful degradation**: optional deps missing → feature disabled, not crashed
+- **Friendly onboarding**: app launches without API key, shows setup guide in UI
+
+---
+
+<a name="中文"></a>
+
+## 📖 中文使用指南
 
 ### 文本输入
 1. 在「📝 文本输入」Tab 粘贴会议文字记录
@@ -92,31 +138,15 @@ python meeting_summarizer.py
 
 ### 导出
 - 生成纪要后，点击底部按钮导出为 Markdown / Word / PDF
-- 导出文件保存在 `exports/` 目录
 
-## 📁 项目结构
+---
 
-```
-AI会议纪要/
-├── meeting_summarizer.py    # 主程序（Gradio UI + 业务逻辑）
-├── requirements.txt         # Python 依赖
-├── .env                     # 环境变量（API Key，不提交）
-├── .env.example             # 环境变量模板
-├── .gitignore
-├── meetings.db              # SQLite 数据库（本地历史记录）
-├── exports/                 # 导出文件目录
-└── README.md
-```
+## ⚠️ 注意事项
 
-## 🔧 设计要点
-
-- **自动依赖安装**: 启动时自动检测并安装缺失的 Python 包，降低使用门槛
-- **懒加载 Whisper**: 仅在首次使用音频功能时才下载模型，避免不必要的资源消耗
-- **编码兼容**: `.txt` 解析自动尝试 UTF-8 → GBK，兼容 Windows 中文环境
-- **线程安全**: SQLite 操作使用 `threading.Lock` 保护，避免并发写入冲突
-- **容错设计**: 数据库写入失败不影响主流程；可选依赖缺失时优雅降级
-- **长文本截断**: 超过 8000 字自动截断并提示用户
+1. 音频转文字需要安装 `ffmpeg`：[下载地址](https://ffmpeg.org/download.html)
+2. Whisper 模型首次使用时会自动下载（约 75MB），请耐心等待
+3. 长文本（>8000字）会自动截断处理
 
 ## 📄 License
 
-MIT
+MIT — 自由使用、修改、分发。

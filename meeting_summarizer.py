@@ -120,15 +120,28 @@ class MeetingMinutes(BaseModel):
 
 # ==================== LLM 初始化 ====================
 api_key = os.getenv("DEEPSEEK_API_KEY")
-if not api_key:
-    raise ValueError("未找到 DEEPSEEK_API_KEY，请检查 .env 文件。")
+_structured_llm = None
 
-llm = ChatDeepSeek(
-    model="deepseek-chat",
-    temperature=0.1,
-    api_key=api_key,
-)
-structured_llm = llm.with_structured_output(MeetingMinutes)
+
+def _get_structured_llm():
+    """懒加载 DeepSeek LLM（首次调用时初始化，无 API Key 时给出友好提示）"""
+    global _structured_llm
+    if _structured_llm is not None:
+        return _structured_llm, None
+
+    if not api_key:
+        return None, (
+            "⚠️ 未配置 DeepSeek API Key。\n"
+            "请复制 .env.example 为 .env，填入你的 API Key 后重启应用。\n"
+            "获取地址：https://platform.deepseek.com"
+        )
+
+    try:
+        llm = ChatDeepSeek(model="deepseek-chat", temperature=0.1, api_key=api_key)
+        _structured_llm = llm.with_structured_output(MeetingMinutes)
+        return _structured_llm, None
+    except Exception as e:
+        return None, f"❌ LLM 初始化失败：{e}"
 
 
 # ==================== SQLite 数据库层 ====================
@@ -487,9 +500,24 @@ def summarize_meeting(text: str, source_type: str = "text",
         f"{overflow_note}\n=== 会议记录 ===\n{text}"
     )
 
+    # 懒加载 LLM（首次调用时初始化）
+    llm_instance, llm_error = _get_structured_llm()
+    if llm_error:
+        return {
+            "状态": "⚠️ 未配置 API Key",
+            "提示": llm_error,
+            "争论焦点": "", "最终结论": "", "待办事项": [],
+        }
+    if llm_instance is None:
+        return {
+            "状态": "❌ LLM 未初始化",
+            "提示": "内部错误：LLM 初始化失败。",
+            "争论焦点": "", "最终结论": "", "待办事项": [],
+        }
+
     # 调用 API
     try:
-        result: MeetingMinutes = structured_llm.invoke(prompt)
+        result: MeetingMinutes = llm_instance.invoke(prompt)
         todo_list = [
             {"任务": item.task, "负责人": item.person}
             for item in result.待办事项
@@ -638,6 +666,14 @@ with gr.Blocks(title="AI智能会议纪要生成工具") as demo:
     # 📋 AI智能会议纪要生成工具
     输入会议文字记录或上传文件，自动提取争论焦点、结论和待办事项
     """)
+
+    # --- API Key 状态提示 ---
+    if not api_key:
+        gr.Markdown("""
+        > ⚠️ **未配置 DeepSeek API Key**
+        > 请复制 `.env.example` 为 `.env`，在 [platform.deepseek.com](https://platform.deepseek.com) 获取 API Key 填入后重启应用。
+        > 当前可浏览界面，但无法生成纪要。
+        """)
 
     with gr.Row():
         # ========== 左侧：历史记录面板 ==========
