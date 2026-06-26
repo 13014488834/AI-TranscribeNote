@@ -12,6 +12,19 @@ An intelligent meeting minutes extraction tool powered by **DeepSeek + LangChain
 
 ---
 
+## 🌍 在线版（无需安装，浏览器即用）
+
+> 👉 **即将上线 Hugging Face Spaces** | 部署后在这里放链接
+
+### 🔑 两种使用方式
+
+| 方式 | 适用场景 | 如何配置 |
+|------|---------|---------|
+| **UI 输入 Key** | 在线版 / 临时使用 | 在页面顶部「API Key」输入框粘贴你的 Key（仅存浏览器，不上传服务器） |
+| **.env 文件** | 本地长期使用 | 创建 `.env`，写入 `DEEPSEEK_API_KEY=你的Key`，重启应用 |
+
+> 💡 **API Key 获取**: [platform.deepseek.com](https://platform.deepseek.com)（新用户有免费额度）
+
 ## ✨ Features / 核心功能
 
 | Feature | Description |
@@ -96,15 +109,27 @@ Browser opens at `http://127.0.0.1:7860`
 
 ```
 AI-TranscribeNote/
-├── meeting_summarizer.py    # Main app
+├── meeting_summarizer.py    # 主程序（本地使用）
+├── app.py                   # HF Spaces 在线版入口
 ├── requirements.txt         # Python dependencies
-├── run.bat                  # Windows launcher
-├── run.sh                   # Linux/Mac launcher
-├── .env.example             # API key template
+├── run.bat                  # Windows 一键启动
+├── run.sh                   # Linux/Mac 一键启动
+├── .env.example             # API Key 模板
 ├── .gitignore
 ├── LICENSE                  # MIT
 └── README.md
 ```
+
+## 🚀 Deploy to Hugging Face Spaces (Free)
+
+一键部署在线版，别人打开浏览器就能用：
+
+1. Fork 本仓库到你的 GitHub
+2. 打开 [huggingface.co/new-space](https://huggingface.co/new-space)
+3. 选择 **Gradio** SDK，填入你的仓库地址
+4. 创建 Space，几秒后即上线
+
+> 在线版使用「UI 输入 Key」模式，用户自己填 Key，你不承担 API 费用。
 
 ## 🔧 Design Highlights / 设计要点
 

@@ -119,27 +119,35 @@ class MeetingMinutes(BaseModel):
 
 
 # ==================== LLM 初始化 ====================
-api_key = os.getenv("DEEPSEEK_API_KEY")
-_structured_llm = None
+_api_key_from_env = os.getenv("DEEPSEEK_API_KEY")
+_llm_cache = {}  # 不同 API Key 对应不同 LLM 实例
 
 
-def _get_structured_llm():
-    """懒加载 DeepSeek LLM（首次调用时初始化，无 API Key 时给出友好提示）"""
-    global _structured_llm
-    if _structured_llm is not None:
-        return _structured_llm, None
+def _get_structured_llm(override_key: str = ""):
+    """懒加载 DeepSeek LLM（首次调用时初始化，支持 UI 临时 Key 或 .env Key）
 
-    if not api_key:
+    Args:
+        override_key: 用户在 UI 中输入的 API Key，优先级高于 .env
+    """
+    effective_key = (override_key or _api_key_from_env or "").strip()
+
+    if not effective_key:
         return None, (
             "⚠️ 未配置 DeepSeek API Key。\n"
-            "请复制 .env.example 为 .env，填入你的 API Key 后重启应用。\n"
+            "两种方式任选：\n"
+            "1) 在下方「API Key」输入框粘贴你的 Key\n"
+            "2) 创建 .env 文件，写入 DEEPSEEK_API_KEY=你的Key\n"
             "获取地址：https://platform.deepseek.com"
         )
 
+    # 检查缓存（同一 Key 复用）
+    if effective_key in _llm_cache:
+        return _llm_cache[effective_key], None
+
     try:
-        llm = ChatDeepSeek(model="deepseek-chat", temperature=0.1, api_key=api_key)
-        _structured_llm = llm.with_structured_output(MeetingMinutes)
-        return _structured_llm, None
+        llm = ChatDeepSeek(model="deepseek-chat", temperature=0.1, api_key=effective_key)
+        _llm_cache[effective_key] = llm.with_structured_output(MeetingMinutes)
+        return _llm_cache[effective_key], None
     except Exception as e:
         return None, f"❌ LLM 初始化失败：{e}"
 
@@ -457,7 +465,8 @@ def export_pdf(result: dict) -> str:
 
 # ==================== 核心处理函数 ====================
 def summarize_meeting(text: str, source_type: str = "text",
-                      source_name: str = "手动输入") -> dict:
+                      source_name: str = "手动输入",
+                      api_key: str = "") -> dict:
     """
     处理会议文字记录，提取争论焦点、最终结论和待办事项，
     并自动保存到 SQLite 历史记录。
@@ -466,6 +475,7 @@ def summarize_meeting(text: str, source_type: str = "text",
         text: 会议文字内容
         source_type: 来源类型（text / file）
         source_name: 来源名称（用于历史列表展示）
+        api_key: 用户在 UI 输入的 DeepSeek API Key，优先级高于 .env
 
     Returns:
         dict: 结构化纪要
@@ -501,7 +511,7 @@ def summarize_meeting(text: str, source_type: str = "text",
     )
 
     # 懒加载 LLM（首次调用时初始化）
-    llm_instance, llm_error = _get_structured_llm()
+    llm_instance, llm_error = _get_structured_llm(override_key=api_key)
     if llm_error:
         return {
             "状态": "⚠️ 未配置 API Key",
@@ -568,14 +578,14 @@ def _refresh_history_choices(search: str = "") -> list:
     ]
 
 
-def on_text_submit(text: str) -> Tuple[dict, dict, dict]:
+def on_text_submit(text: str, api_key: str = "") -> Tuple[dict, dict, dict]:
     """文本输入 → 生成纪要 + 刷新历史 + 更新导出状态"""
-    result = summarize_meeting(text, "text", "手动输入")
+    result = summarize_meeting(text, "text", "手动输入", api_key=api_key)
     choices = _refresh_history_choices()
     return result, gr.update(choices=choices, value=None), result
 
 
-def on_file_submit(file) -> Tuple[dict, dict, dict]:
+def on_file_submit(file, api_key: str = "") -> Tuple[dict, dict, dict]:
     """文件上传 → 解析 → 生成纪要 + 刷新历史 + 更新导出状态"""
     empty = {
         "状态": "⚠️ 未选择文件",
@@ -595,7 +605,7 @@ def on_file_submit(file) -> Tuple[dict, dict, dict]:
         return empty, gr.update(choices=_refresh_history_choices(), value=None), empty
 
     # 生成纪要
-    result = summarize_meeting(text, "file", name)
+    result = summarize_meeting(text, "file", name, api_key=api_key)
     choices = _refresh_history_choices()
     return result, gr.update(choices=choices, value=None), result
 
@@ -667,13 +677,20 @@ with gr.Blocks(title="AI智能会议纪要生成工具") as demo:
     输入会议文字记录或上传文件，自动提取争论焦点、结论和待办事项
     """)
 
-    # --- API Key 状态提示 ---
-    if not api_key:
-        gr.Markdown("""
-        > ⚠️ **未配置 DeepSeek API Key**
-        > 请复制 `.env.example` 为 `.env`，在 [platform.deepseek.com](https://platform.deepseek.com) 获取 API Key 填入后重启应用。
-        > 当前可浏览界面，但无法生成纪要。
-        """)
+    # --- API Key 区域（优先 UI 输入，其次 .env） ---
+    gr.Markdown("### 🔑 DeepSeek API Key")
+    with gr.Row():
+        api_key_input = gr.Textbox(
+            label="",
+            placeholder="粘贴你的 DeepSeek API Key（sk-...），或留空使用 .env 配置",
+            type="password",
+            scale=3,
+            value=_api_key_from_env or "",
+        )
+        api_key_link = gr.Markdown(
+            "[📎 获取 API Key](https://platform.deepseek.com) ｜ 你的 Key 仅在浏览器本地使用，不存储到服务器",
+            scale=2,
+        )
 
     with gr.Row():
         # ========== 左侧：历史记录面板 ==========
@@ -724,15 +741,15 @@ with gr.Blocks(title="AI智能会议纪要生成工具") as demo:
     # ==================== 事件绑定 ====================
     # 文本提交 → 同时更新 JSON 显示、历史列表、导出状态
     text_submit_btn.click(
-        fn=lambda txt: on_text_submit(txt),
-        inputs=text_input,
+        fn=lambda txt, key: on_text_submit(txt, str(key or "")),
+        inputs=[text_input, api_key_input],
         outputs=[output_json, history_radio, current_result],
     )
 
     # 文件提交 → 同时更新 JSON 显示、历史列表、导出状态
     file_submit_btn.click(
-        fn=lambda f: on_file_submit(f),
-        inputs=file_input,
+        fn=lambda f, key: on_file_submit(f, str(key or "")),
+        inputs=[file_input, api_key_input],
         outputs=[output_json, history_radio, current_result],
     )
 
